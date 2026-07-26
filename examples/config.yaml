@@ -1,0 +1,12 @@
+# Image Studio defaults
+# You can override these in your Hermes config.yaml:
+#
+#   image_studio:
+#     output_root: /Volumes/Spare Drive/Personal Stuff/Image Studio
+#     default_model: flux-pro
+#     default_preset: cinematic
+
+# FAL.ai API key (required)
+# Sign up: https://fal.ai
+# Dashboard: https://fal.ai/dashboard
+# FAL_KEY: sk-...
