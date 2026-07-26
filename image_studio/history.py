@@ -145,6 +145,16 @@ def recent_generations(limit: int = 10) -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def find_by_image_url(image_url: str) -> Optional[Dict[str, Any]]:
+    """Find a generation record by its FAL image URL (partial match)."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT * FROM generations WHERE image_url = ? ORDER BY id DESC LIMIT 1",
+        (image_url,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def get_generation(gen_id: int) -> Optional[Dict[str, Any]]:
     """Get a single generation by ID."""
     conn = _get_conn()

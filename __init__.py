@@ -227,18 +227,37 @@ def _handle_upscale(image_url: str, **kwargs: Any) -> str:
     try:
         upscaled = engine.upscale(image_url)
 
-        # Save
-        file_path = organizer.save_upscaled_image(
-            upscaled["image_url"],
-            "upscaled",  # placeholder; real name from history lookup
-            output_root=_OUTPUT_ROOT,
-        )
+        # Try to find the source generation in history for a better filename
+        source_path = ""
+        src = history.find_by_image_url(image_url)
+        if src and src.get("file_path"):
+            source_path = src["file_path"]
+            import os as _os
+            base = _os.path.splitext(_os.path.basename(source_path))[0]
+            # Save alongside the original with _HD suffix
+            root = _os.path.dirname(source_path)
+            hd_filename = f"{base}_HD.png"
+            file_path = _os.path.join(root, hd_filename)
+            # Download the upscaled image
+            import urllib.request
+            req = urllib.request.Request(upscaled["image_url"],
+                                         headers={"User-Agent": "Hermes-ImageStudio/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                with open(file_path, "wb") as f:
+                    f.write(resp.read())
+        else:
+            # No history match, use the generic organizer method
+            file_path = organizer.save_upscaled_image(
+                upscaled["image_url"], "upscaled", output_root=_OUTPUT_ROOT,
+            )
 
         # Record in upscale history
+        src_id = src["id"] if src else None
         history.record_upscale(
             source_image_url=image_url,
             result_image_url=upscaled["image_url"],
             scale=upscaled.get("scale", 2),
+            source_gen_id=src_id,
         )
 
         return tool_result(
