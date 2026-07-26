@@ -129,11 +129,23 @@ The repo includes 3 Hermes skills in the `skills/` directory:
 
 Copy these to `~/.hermes/skills/` to load them into Hermes sessions.
 
-## How It Works
+## Design
 
-Image Studio is a standard Hermes plugin. The `plugin.yaml` and `__init__.py`
-register 5 tools that wrap FAL.ai's REST API using only Python stdlib (no
-extra dependencies). Each generation is:
+**Zero dependencies.** The plugin uses only Python's built-in libraries —
+urllib, sqlite3, json, os, re. No pip installs, no requirements.txt, no
+dependency hell. Clone it and it works.
+
+**Safe by design.** If FAL_KEY is not set, the tools simply don't register.
+No crashes, no stack traces, no error spam. Set the key when you're ready.
+
+**Standard Hermes architecture.** Follows the same plugin pattern as the
+official Spotify and disk-cleanup plugins. Uses `plugin.yaml` + `register(ctx)`
+to wire 5 tools into the `image-studio` toolset. Predictable, maintainable,
+and compatible with every Hermes version.
+
+### Generation Pipeline
+
+Each image goes through a clean pipeline:
 
 1. Prompt enhanced with the chosen preset's style framing
 2. Sent to FAL's FLUX Pro or Klein endpoint
