@@ -1,7 +1,7 @@
 # Hermes Image Studio
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-10 preset styles across 6 models, auto-upscaling, batch generation, and history tracking via FAL.ai.
+10 style presets across 6 FLUX and GPT Image models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
