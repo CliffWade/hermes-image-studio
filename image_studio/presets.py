@@ -82,6 +82,22 @@ PRESETS: Dict[str, Dict[str, Any]] = {
         "steps": 28,
         "model": "flux-pro",
     },
+    "gpt-photo": {
+        "name": "GPT Photo (Text + Complex Scenes)",
+        "description": "GPT Image excels at rendering text, following detailed multi-subject prompts, and nuanced style instructions. Use this for signs, labels, complex compositions, and when the scene has specific constraints.",
+        "prefix": "",
+        "suffix": ", highly detailed, well-composed, accurate proportions, natural lighting",
+        "steps": 8,
+        "model": "gpt-image-1.5",
+    },
+    "gpt-art": {
+        "name": "GPT Artistic (Creative + Stylized)",
+        "description": "GPT Image's strong instruction-following makes it ideal for specific art styles, creative interpretations, and scenes with precise descriptive requirements.",
+        "prefix": "In the style of, ",
+        "suffix": ", artistic, creative composition, vibrant colors, expressive, detailed brushwork, stylized",
+        "steps": 8,
+        "model": "gpt-image-2",
+    },
 }
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "description": "Highest quality photorealistic generation. Best for cinematic, landscape, and portrait work.",
         "default_steps": 28,
         "max_steps": 50,
+        "size_format": "object",
     },
     "flux-klein": {
         "endpoint": "https://fal.run/fal-ai/flux/klein/9b",
@@ -32,6 +33,31 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "description": "Fast (<1s) generation with strong quality. Great for iteration and quick drafts.",
         "default_steps": 28,
         "max_steps": 40,
+        "size_format": "object",
+    },
+    "flux-2-pro": {
+        "endpoint": "https://fal.run/fal-ai/flux-2-pro",
+        "display": "FLUX 2 Pro",
+        "description": "Latest FLUX 2 generation. Best overall quality with improved prompt adherence.",
+        "default_steps": 28,
+        "max_steps": 50,
+        "size_format": "image_size_preset",
+    },
+    "gpt-image-1.5": {
+        "endpoint": "https://fal.run/fal-ai/gpt-image-1.5",
+        "display": "GPT Image 1.5",
+        "description": "OpenAI's GPT Image model. Excels at text rendering, complex multi-subject prompts, and following nuanced style instructions.",
+        "default_steps": 8,
+        "max_steps": 20,
+        "size_format": "gpt_literal",
+    },
+    "gpt-image-2": {
+        "endpoint": "https://fal.run/fal-ai/gpt-image-2",
+        "display": "GPT Image 2",
+        "description": "Newest OpenAI image model. Better at text, precise compositions, and creative interpretation of detailed briefs.",
+        "default_steps": 8,
+        "max_steps": 20,
+        "size_format": "image_size_preset",
     },
     "clarity-upscaler": {
         "endpoint": "https://fal.run/fal-ai/clarity-upscaler",
@@ -39,6 +65,7 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "description": "2x or 4x AI upscaling with sharpness enhancement.",
         "default_steps": None,
         "max_steps": None,
+        "size_format": None,
     },
 }
 
@@ -61,6 +88,21 @@ ASPECT_RATIO_ALIASES: Dict[str, str] = {
     "9:16": "portrait",
     "wide": "landscape",
     "tall": "portrait",
+}
+
+# Size format mappings for models that don't use the standard {width, height} object
+# GPT Image 1.5 uses literal dimension strings
+GPT_LITERAL_SIZES: Dict[str, str] = {
+    "square": "1024x1024",
+    "landscape": "1792x1024",
+    "portrait": "1024x1792",
+}
+
+# GPT Image 2 and FLUX 2 Pro use preset enums (same style as FLUX but different values)
+IMAGE_SIZE_PRESETS: Dict[str, str] = {
+    "square": "square_hd",
+    "landscape": "landscape_16_9",
+    "portrait": "portrait_16_9",
 }
 
 
@@ -169,21 +211,40 @@ def generate(
         )
 
     ar_key = resolve_aspect_ratio(aspect_ratio)
-    size = ASPECT_RATIO_SIZES[ar_key]
+    size_format = model_info.get("size_format", "object")
 
     steps = steps if steps is not None else model_info["default_steps"]
     if model_info["max_steps"] and steps > model_info["max_steps"]:
         steps = model_info["max_steps"]
 
-    payload: Dict[str, Any] = {
-        "prompt": prompt,
-        "image_size": size,
-        "num_inference_steps": steps,
-        "seed": seed,
-    }
+    # Build payload based on model's size format
+    payload: Dict[str, Any] = {"prompt": prompt}
+    size_format = model_info.get("size_format", "object")
+
+    if size_format == "object":
+        size = ASPECT_RATIO_SIZES[ar_key]
+        payload["image_size"] = size
+        w, h = size["width"], size["height"]
+    elif size_format == "gpt_literal":
+        dims_str = GPT_LITERAL_SIZES[ar_key]
+        payload["image_size"] = dims_str
+        dims = dims_str.split("x")
+        w, h = int(dims[0]), int(dims[1])
+    elif size_format == "image_size_preset":
+        preset = IMAGE_SIZE_PRESETS[ar_key]
+        payload["image_size"] = preset
+        canon = ASPECT_RATIO_SIZES[ar_key]
+        w, h = canon["width"], canon["height"]
+    else:
+        size = ASPECT_RATIO_SIZES[ar_key]
+        payload["image_size"] = size
+        w, h = size["width"], size["height"]
+
+    payload["num_inference_steps"] = steps
+    payload["seed"] = seed
 
     result = _request(model_info["endpoint"], payload)
-    images = result.get("images") or result.get("images", [])
+    images = result.get("images") or []
     if not images:
         raise RuntimeError(f"FAL returned no images: {json.dumps(result)[:300]}")
 
@@ -193,8 +254,8 @@ def generate(
         "model": model,
         "steps": steps,
         "aspect_ratio": ar_key,
-        "width": size["width"],
-        "height": size["height"],
+        "width": w,
+        "height": h,
     }
 
 

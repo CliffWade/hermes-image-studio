@@ -1,7 +1,7 @@
 # Hermes Image Studio
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-Style presets, auto-upscaling, batch generation, and history tracking via FAL.ai.
+10 preset styles across 6 models, auto-upscaling, batch generation, and history tracking via FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
@@ -9,8 +9,13 @@ directly from your Hermes conversations. No running to another tool.
 ## Features
 
 - **8 Style Presets** — Cinematic, photorealistic, vintage, fantasy, illustration,
-  minimalist, noir, and studio. Each preset tunes prompt phrasing, inference steps,
-  and model selection for consistent visual results.
+  minimalist, noir, and studio for FLUX models. Each preset tunes prompt phrasing,
+  inference steps, and model selection for consistent visual results.
+- **2 GPT Presets** — `gpt-photo` for text rendering and complex multi-subject
+  scenes (GPT Image 1.5), and `gpt-art` for creative and stylized interpretation
+  (GPT Image 2).
+- **6 Models** — FLUX Pro, FLUX Klein, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
+  and Clarity Upscaler. Choose the right tool for the job.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
 - **Batch Generation** — Generate 2-8 variants simultaneously with random seeds
   to explore compositions and find the best result.
@@ -99,16 +104,18 @@ image_studio_history(limit=5)
 
 ## Style Presets
 
-| Preset | Description | Steps |
-|--------|-------------|-------|
-| `cinematic` | Movie-grade lighting, shallow DOF, film grain | 30 |
-| `photorealistic` | True-to-life natural look, sharp focus | 28 |
-| `vintage` | Warm faded tones, film grain, kodachrome palette | 30 |
-| `fantasy` | Epic, magical lighting, rich colors, concept art | 32 |
-| `minimalist` | Clean, soft lighting, muted palette, editorial | 26 |
-| `illustration` | Bold artistic style, painterly textures | 28 |
-| `noir` | High contrast, dramatic shadows, black and white | 30 |
-| `studio` | Controlled lighting, clean background, product-ready | 28 |
+| Preset | Description | Steps | Model |
+|--------|-------------|-------|-------|
+| `cinematic` | Movie-grade lighting, shallow DOF, film grain | 30 | FLUX Pro |
+| `photorealistic` | True-to-life natural look, sharp focus | 28 | FLUX Pro |
+| `vintage` | Warm faded tones, film grain, kodachrome palette | 30 | FLUX Pro |
+| `fantasy` | Epic, magical lighting, rich colors, concept art | 32 | FLUX Pro |
+| `minimalist` | Clean, soft lighting, muted palette, editorial | 26 | FLUX Pro |
+| `illustration` | Bold artistic style, painterly textures | 28 | FLUX Pro |
+| `noir` | High contrast, dramatic shadows, black and white | 30 | FLUX Pro |
+| `studio` | Controlled lighting, clean background, product-ready | 28 | FLUX Pro |
+| `gpt-photo` | Text rendering, complex scenes, specific constraints | 8 | GPT Image 1.5 |
+| `gpt-art` | Artistic styles, creative interpretation, stylized | 8 | GPT Image 2 |
 
 ## Output Location
 
@@ -147,8 +154,8 @@ and compatible with every Hermes version.
 
 Each image goes through a clean pipeline:
 
-1. Prompt enhanced with the chosen preset's style framing
-2. Sent to FAL's FLUX Pro or Klein endpoint
+1. Prompt enhanced with the chosen preset's style framing and model selection
+2. Sent to the appropriate model endpoint (FLUX or GPT Image via FAL)
 3. Downloaded and saved with a descriptive filename
 4. Recorded in a local SQLite history database
 5. Ready for upscaling or re-generation with a different seed
