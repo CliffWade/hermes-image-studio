@@ -1,5 +1,7 @@
 # Hermes Image Studio
 
+![Hero](hero.png)
+
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
 10 style presets across 6 FLUX and GPT Image models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
 
@@ -120,7 +122,14 @@ image_studio_history(limit=5)
 ## Output Location
 
 Images are saved to `/Volumes/Spare Drive/Personal Stuff/Image Studio/`
-by default. Filename pattern:
+by default. You can change this by setting the `HERMES_IMAGE_STUDIO_OUTPUT`
+environment variable in `~/.hermes/.env`:
+
+```
+HERMES_IMAGE_STUDIO_OUTPUT=/path/to/your/images
+```
+
+Filename pattern:
 
 ```
 YYYYMMDD_HHMMSS_preset_seed_subject.png

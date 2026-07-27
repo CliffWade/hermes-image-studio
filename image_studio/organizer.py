@@ -17,8 +17,9 @@ from typing import Optional
 # Default output root
 # ---------------------------------------------------------------------------
 
-DEFAULT_OUTPUT_ROOT = os.path.expanduser(
-    "/Volumes/Spare Drive/Personal Stuff/Image Studio"
+DEFAULT_OUTPUT_ROOT = os.environ.get(
+    "HERMES_IMAGE_STUDIO_OUTPUT",
+    os.path.expanduser("/Volumes/Spare Drive/Personal Stuff/Image Studio"),
 )
 
 
