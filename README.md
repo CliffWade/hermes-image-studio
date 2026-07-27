@@ -19,6 +19,7 @@ directly from your Hermes conversations. No running to another tool.
 - **6 Models** — FLUX Pro, FLUX Klein, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
   and Clarity Upscaler. Choose the right tool for the job.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
+- **Image-to-Image Editing** — Transform any generated image with a new prompt using GPT Image 1.5. "Turn this photo into a watercolor painting" or "Add a dirt path leading to the door."
 - **Batch Generation** — Generate 2-8 variants simultaneously with random seeds
   to explore compositions and find the best result.
 - **History Tracking** — Every generation is recorded in a local SQLite database.
@@ -75,11 +76,12 @@ That's it. Start a new Hermes session and you're ready.
 
 ## Tools
 
-The plugin registers 5 tools into the `image-studio` toolset:
+The plugin registers 6 tools into the `image-studio` toolset:
 
 | Tool | What it does |
 |------|-------------|
 | `image_studio_generate` | Generate a single image with a style preset |
+| `image_studio_edit` | Edit an existing image with a new prompt (img2img) |
 | `image_studio_upscale` | 2x upscale any generated image |
 | `image_studio_batch` | Generate N variants with random seeds |
 | `image_studio_presets` | List all available presets with descriptions |
@@ -91,6 +93,9 @@ The plugin registers 5 tools into the `image-studio` toolset:
 # Generate a cinematic landscape
 image_studio_generate(prompt="A lone cowboy riding through Monument Valley at sunrise, warm golden light, dust kicking up", preset="cinematic", aspect_ratio="landscape")
 
+# Edit that image (transform it with a new prompt)
+image_studio_edit(image_url="https://...from-above-generation...", prompt="Add a herd of wild horses in the distance, thunderstorm brewing on the horizon")
+
 # List presets
 image_studio_presets
 
@@ -98,7 +103,7 @@ image_studio_presets
 image_studio_batch(prompt="A futuristic cityscape at night with neon lights", preset="fantasy", count=4)
 
 # Upscale the result
-image_studio_upscale(image_url="https://v3b.fal.media/...")
+image_studio_upscale(image_url="https://...")
 
 # Check history
 image_studio_history(limit=5)
@@ -164,10 +169,10 @@ and compatible with every Hermes version.
 Each image goes through a clean pipeline:
 
 1. Prompt enhanced with the chosen preset's style framing and model selection
-2. Sent to the appropriate model endpoint (FLUX or GPT Image via FAL)
+2. Sent to the appropriate model endpoint (FLUX, GPT Image, or GPT Image edit via FAL)
 3. Downloaded and saved with a descriptive filename
 4. Recorded in a local SQLite history database
-5. Ready for upscaling or re-generation with a different seed
+5. Ready for editing, upscaling, or re-generation with a different seed
 
 ## License
 

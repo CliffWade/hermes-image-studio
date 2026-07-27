@@ -7,8 +7,8 @@ description: "Full image creation workflow using Hermes Image Studio. Guides the
 
 End-to-end skill for producing publish-ready images using the Hermes
 Image Studio plugin (tools: `image_studio_presets`,
-`image_studio_generate`, `image_studio_batch`, `image_studio_upscale`,
-`image_studio_history`).
+`image_studio_generate`, `image_studio_edit`, `image_studio_batch`,
+`image_studio_upscale`, `image_studio_history`).
 
 ## The Pipeline
 
@@ -63,6 +63,7 @@ Step                  Tool                          When
 -----                ----                          ----
 Pick a preset        image_studio_presets           Always start here
 Generate             image_studio_generate          One shot
+Edit                 image_studio_edit              Transform an existing image
 Explore variants     image_studio_batch count=4     User wants options
 Upscale final        image_studio_upscale           Before publishing
 Browse history       image_studio_history           Re-find or tweak past work

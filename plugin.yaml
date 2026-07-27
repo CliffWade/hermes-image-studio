@@ -1,10 +1,11 @@
 name: image-studio
-version: 1.1.0
-description: "AI image generation studio for Hermes. 10 presets across 6 models (FLUX + GPT Image). Auto-upscaling, batch generation, and history tracking via FAL.ai."
+version: 1.2.0
+description: "AI image generation studio for Hermes. 10 presets across 6 models (FLUX + GPT Image). Edit, upscale, batch, history, all through FAL.ai."
 author: "Cliff (published on GitHub)"
 kind: backend
 provides_tools:
   - image_studio_generate
+  - image_studio_edit
   - image_studio_upscale
   - image_studio_batch
   - image_studio_presets

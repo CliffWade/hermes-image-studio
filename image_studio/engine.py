@@ -296,6 +296,73 @@ def upscale(
     }
 
 
+def edit(
+    image_url: str,
+    prompt: str,
+    *,
+    model: str = "gpt-image-1.5",
+    aspect_ratio: str = "square",
+    steps: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Edit an existing image via FAL (img2img).
+
+    Accepts a source image URL and a prompt describing the edit.
+    Works with GPT Image 1.5 (best for precise edits) and FLUX 2 Pro.
+
+    Returns:
+        dict with keys: image_url, model, aspect_ratio, width, height, steps
+    """
+    model_info = MODELS.get(model)
+    if model_info is None:
+        raise ValueError(f"Unknown model '{model}'. Available: gpt-image-1.5, flux-2-pro")
+
+    ar_key = resolve_aspect_ratio(aspect_ratio)
+    size_format = model_info.get("size_format", "object")
+
+    steps = steps if steps is not None else model_info["default_steps"]
+    if model_info["max_steps"] and steps > model_info["max_steps"]:
+        steps = model_info["max_steps"]
+
+    payload: Dict[str, Any] = {
+        "prompt": prompt,
+        "image_urls": [image_url],
+    }
+
+    if size_format == "gpt_literal":
+        payload["image_size"] = GPT_LITERAL_SIZES[ar_key]
+        dims = GPT_LITERAL_SIZES[ar_key].split("x")
+        w, h = int(dims[0]), int(dims[1])
+    elif size_format == "image_size_preset":
+        payload["image_size"] = IMAGE_SIZE_PRESETS[ar_key]
+        canon = ASPECT_RATIO_SIZES[ar_key]
+        w, h = canon["width"], canon["height"]
+    else:
+        size = ASPECT_RATIO_SIZES[ar_key]
+        payload["image_size"] = size
+        w, h = size["width"], size["height"]
+
+    payload["num_inference_steps"] = steps
+
+    # Edit endpoints use the same base URL with /edit suffix
+    base_endpoint = model_info["endpoint"]
+    edit_endpoint = f"{base_endpoint}/edit"
+
+    result = _request(edit_endpoint, payload)
+    images = result.get("images") or []
+    if not images:
+        raise RuntimeError(f"Edit endpoint returned no images: {json.dumps(result)[:300]}")
+
+    return {
+        "image_url": images[0]["url"],
+        "seed": result.get("seed", -1),
+        "model": model,
+        "steps": steps,
+        "aspect_ratio": ar_key,
+        "width": w,
+        "height": h,
+    }
+
+
 def check_connection() -> Dict[str, Any]:
     """Verify the FAL key is set and the API is reachable.
 

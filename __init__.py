@@ -128,6 +128,30 @@ HISTORY_SCHEMA = {
     },
 }
 
+EDIT_SCHEMA = {
+    "name": "image_studio_edit",
+    "description": "Edit an existing image by providing a new prompt describing the change. Uses GPT Image 1.5 (best for precise edits like turning a circle into a square) or FLUX 2 Pro. The source image can be from a prior generation or any accessible image URL.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "image_url": {
+                "type": "string",
+                "description": "URL of the image to edit. Use the image_url from a prior generation result.",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "Describe what to change. Be specific: 'turn the red circle into a blue square', 'add a dirt path leading to the front door', 'make it look like a watercolor painting'.",
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "description": 'Aspect ratio: "square" (1:1), "landscape" (16:9), or "portrait" (9:16).',
+                "default": "square",
+            },
+        },
+        "required": ["image_url", "prompt"],
+    },
+}
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -321,6 +345,56 @@ def _handle_presets(**kwargs: Any) -> str:
     )
 
 
+def _handle_edit(image_url: str, prompt: str, **kwargs: Any) -> str:
+    aspect_ratio = kwargs.get("aspect_ratio", "square")
+
+    try:
+        # Use GPT Image 1.5 for edits (best for prompt fidelity)
+        result = engine.edit(
+            image_url,
+            prompt,
+            model="gpt-image-1.5",
+            aspect_ratio=aspect_ratio,
+        )
+
+        # Save locally
+        file_path = organizer.save_generated_image(
+            result["image_url"],
+            prompt,
+            preset="edit",
+            seed=result.get("seed", -1),
+            output_root=_OUTPUT_ROOT,
+        )
+
+        # Record in history
+        gen_id = history.record_generation(
+            prompt=prompt,
+            preset="edit",
+            model=result["model"],
+            seed=result.get("seed", -1),
+            steps=result.get("steps", 8),
+            aspect_ratio=result.get("aspect_ratio", aspect_ratio),
+            width=result.get("width", 0),
+            height=result.get("height", 0),
+            image_url=result["image_url"],
+            file_path=file_path,
+        )
+
+        return tool_result(
+            {
+                "gen_id": gen_id,
+                "image_url": result["image_url"],
+                "file_path": file_path,
+                "model": result["model"],
+                "aspect_ratio": result.get("aspect_ratio", aspect_ratio),
+            },
+            title="Image Edited",
+            emoji="🖌️",
+        )
+    except (ValueError, RuntimeError, PermissionError) as exc:
+        return tool_error(str(exc))
+
+
 def _handle_history(**kwargs: Any) -> str:
     limit = min(int(kwargs.get("limit", 10)), 50)
     entries = history.recent_generations(limit)
@@ -356,6 +430,7 @@ def _handle_history(**kwargs: Any) -> str:
 
 _TOOLS = (
     ("image_studio_generate", GENERATE_SCHEMA, _handle_generate, "🎨"),
+    ("image_studio_edit", EDIT_SCHEMA, _handle_edit, "🖌️"),
     ("image_studio_upscale", UPSCALE_SCHEMA, _handle_upscale, "🔍"),
     ("image_studio_batch", BATCH_SCHEMA, _handle_batch, "📸"),
     ("image_studio_presets", PRESETS_SCHEMA, _handle_presets, "🎭"),
