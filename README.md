@@ -3,7 +3,7 @@
 ![Hero](hero.png)
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-11 style presets across 9 FLUX, GPT Image, and Nano Banana models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
+11 style presets across 9 FLUX, GPT Image, and Nano Banana models. Negative prompts, social-ready sizes, prompt library, web gallery, cost tracking, auto-upscaling, and editing, all through FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
@@ -20,8 +20,16 @@ directly from your Hermes conversations. No running to another tool.
   text rendering, and natural-language edits (Nano Banana 2).
 - **9 Models** — FLUX Pro, FLUX 2 Klein 9B, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
   Nano Banana 2, Nano Banana Pro, Clarity Upscaler, and the legacy FLUX Klein v1 for compatibility.
+- **Negative Prompts** — Tell the model what to avoid: "no people, no text, no watermark."
+- **Social-Ready Sizes** — Generate directly at Twitter post/header, Instagram story/post,
+  and YouTube thumbnail dimensions.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
 - **Image-to-Image Editing** — Transform any generated image with a new prompt using GPT Image 1.5. "Turn this photo into a watercolor painting" or "Add a dirt path leading to the door."
+- **Prompt Library** — Save your best prompts by name and regenerate them anytime.
+- **Web Gallery** — Generate a self-contained HTML gallery of everything you've created,
+  filterable by preset and model.
+- **Cost Tracking** — Every generation records its estimated FAL cost. See spend per batch
+  and in total.
 - **Batch Generation** — Generate 2-8 variants simultaneously with random seeds
   to explore compositions and find the best result.
 - **History Tracking** — Every generation is recorded in a local SQLite database.
@@ -78,16 +86,21 @@ That's it. Start a new Hermes session and you're ready.
 
 ## Tools
 
-The plugin registers 6 tools into the `image-studio` toolset:
+The plugin registers 11 tools into the `image-studio` toolset:
 
 | Tool | What it does |
 |------|-------------|
-| `image_studio_generate` | Generate a single image with a style preset |
+| `image_studio_generate` | Generate an image with a style preset, negative prompt, and social size |
 | `image_studio_edit` | Edit an existing image with a new prompt (img2img) |
 | `image_studio_upscale` | 2x upscale any generated image |
 | `image_studio_batch` | Generate N variants with random seeds |
 | `image_studio_presets` | List all available presets with descriptions |
-| `image_studio_history` | Browse recent generations |
+| `image_studio_gallery` | Generate a self-contained HTML gallery of all your images |
+| `image_studio_save_prompt` | Save a prompt to the library by name |
+| `image_studio_load_prompt` | Generate from a saved prompt by name |
+| `image_studio_prompts` | List the prompt library |
+| `image_studio_delete_prompt` | Remove a saved prompt |
+| `image_studio_history` | Browse recent generations with cost tracking |
 
 ### Quick Examples
 
@@ -95,11 +108,23 @@ The plugin registers 6 tools into the `image-studio` toolset:
 # Generate a cinematic landscape
 image_studio_generate(prompt="A lone cowboy riding through Monument Valley at sunrise, warm golden light, dust kicking up", preset="cinematic", aspect_ratio="landscape")
 
+# Generate with a negative prompt (FLUX models)
+image_studio_generate(prompt="A sunset over the ocean", negative_prompt="no people, no boats, no text")
+
+# Generate at Twitter-post size (1200x675)
+image_studio_generate(prompt="A product shot for a launch tweet", preset="studio", aspect_ratio="twitter-post")
+
 # Edit that image (transform it with a new prompt)
 image_studio_edit(image_url="https://...from-above-generation...", prompt="Add a herd of wild horses in the distance, thunderstorm brewing on the horizon")
 
-# List presets
-image_studio_presets
+# Save a prompt for reuse
+image_studio_save_prompt(name="desert-sunrise", prompt="A lone cowboy riding through Monument Valley at sunrise", preset="vintage")
+
+# Generate from a saved prompt
+image_studio_load_prompt(name="desert-sunrise")
+
+# List saved prompts
+image_studio_prompts
 
 # Batch 4 variants
 image_studio_batch(prompt="A futuristic cityscape at night with neon lights", preset="fantasy", count=4)
@@ -107,7 +132,10 @@ image_studio_batch(prompt="A futuristic cityscape at night with neon lights", pr
 # Upscale the result
 image_studio_upscale(image_url="https://...")
 
-# Check history
+# Build the web gallery
+image_studio_gallery
+
+# Check history with cost
 image_studio_history(limit=5)
 ```
 
@@ -126,6 +154,20 @@ image_studio_history(limit=5)
 | `gpt-photo` | Text rendering, complex scenes, specific constraints | 8 | GPT Image 1.5 |
 | `gpt-art` | Artistic styles, creative interpretation, stylized | 8 | GPT Image 2 |
 | `banana-photo` | Photorealism, text rendering, natural-language edits | auto | Nano Banana 2 |
+
+## Social Aspect Ratios
+
+Use these aliases for platform-ready output sizes (FLUX models render exact dimensions):
+
+| Alias | Size | For |
+|-------|------|-----|
+| `twitter-post` (or `x-post`, `social`) | 1200x675 | Standard tweet image |
+| `twitter-header` (or `x-header`, `banner`) | 1500x500 | Profile banner |
+| `instagram-post` (or `ig-post`) | 1080x1080 | Feed square |
+| `instagram-story` (or `story`) | 1080x1920 | Story / Reels cover |
+| `youtube-thumb` (or `yt`) | 1280x720 | Video thumbnail |
+
+Non-FLUX models (GPT Image, Nano Banana) fall back to the closest standard ratio.
 
 ## Output Location
 

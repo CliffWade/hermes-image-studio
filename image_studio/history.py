@@ -68,7 +68,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             height      INTEGER,
             image_url   TEXT,
             file_path   TEXT,
-            tags        TEXT DEFAULT ''
+            tags        TEXT DEFAULT '',
+            cost_usd    REAL DEFAULT 0.0
         )
     """)
     conn.execute("""
@@ -81,6 +82,21 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             source_gen_id   INTEGER REFERENCES generations(id)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS saved_prompts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL UNIQUE,
+            prompt      TEXT NOT NULL,
+            preset      TEXT DEFAULT 'cinematic',
+            model       TEXT DEFAULT 'flux-pro',
+            aspect_ratio TEXT DEFAULT 'landscape',
+            created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    # Migration: add cost_usd column if it doesn't exist yet (older DBs)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(generations)").fetchall()]
+    if "cost_usd" not in cols:
+        conn.execute("ALTER TABLE generations ADD COLUMN cost_usd REAL DEFAULT 0.0")
     conn.commit()
 
 
@@ -102,16 +118,17 @@ def record_generation(
     image_url: str = "",
     file_path: str = "",
     tags: str = "",
+    cost_usd: float = 0.0,
 ) -> int:
     """Insert a generation record and return its ID."""
     conn = _get_conn()
     cur = conn.execute(
         """INSERT INTO generations
            (prompt, preset, model, seed, steps, aspect_ratio, width, height,
-            image_url, file_path, tags)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            image_url, file_path, tags, cost_usd)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (prompt, preset, model, seed, steps, aspect_ratio,
-         width, height, image_url, file_path, tags or ""),
+         width, height, image_url, file_path, tags or "", float(cost_usd or 0.0)),
     )
     conn.commit()
     return cur.lastrowid
@@ -181,3 +198,87 @@ def prune_older_than(days: int = 90) -> int:
     removed = cur.rowcount
     conn.commit()
     return removed
+
+
+# ---------------------------------------------------------------------------
+# Cost tracking
+# ---------------------------------------------------------------------------
+
+
+def total_cost() -> float:
+    """Total spend across all recorded generations."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0.0) AS total FROM generations"
+    ).fetchone()
+    return round(float(row["total"]), 4) if row else 0.0
+
+
+def recent_cost(limit: int = 10) -> float:
+    """Total spend across the most recent N generations."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0.0) AS total FROM ("
+        "SELECT cost_usd FROM generations ORDER BY id DESC LIMIT ?)",
+        (limit,),
+    ).fetchone()
+    return round(float(row["total"]), 4) if row else 0.0
+
+
+# ---------------------------------------------------------------------------
+# Saved prompts (prompt library)
+# ---------------------------------------------------------------------------
+
+
+def save_prompt(
+    name: str,
+    prompt: str,
+    *,
+    preset: str = "cinematic",
+    model: str = "flux-pro",
+    aspect_ratio: str = "landscape",
+) -> int:
+    """Save a named prompt for reuse. Returns its ID (upserts on name)."""
+    conn = _get_conn()
+    conn.execute(
+        """INSERT INTO saved_prompts (name, prompt, preset, model, aspect_ratio)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(name) DO UPDATE SET
+             prompt=excluded.prompt,
+             preset=excluded.preset,
+             model=excluded.model,
+             aspect_ratio=excluded.aspect_ratio,
+             created_at=datetime('now')""",
+        (name, prompt, preset, model, aspect_ratio),
+    )
+    conn.commit()
+    row = conn.execute(
+        "SELECT id FROM saved_prompts WHERE name = ?", (name,)
+    ).fetchone()
+    return row["id"] if row else 0
+
+
+def get_prompt(name: str) -> Optional[Dict[str, Any]]:
+    """Get a saved prompt by name."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT * FROM saved_prompts WHERE name = ?", (name,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def list_prompts() -> List[Dict[str, Any]]:
+    """List all saved prompts."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT * FROM saved_prompts ORDER BY created_at DESC"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def delete_prompt(name: str) -> bool:
+    """Delete a saved prompt by name. Returns True if deleted."""
+    conn = _get_conn()
+    cur = conn.execute("DELETE FROM saved_prompts WHERE name = ?", (name,))
+    conn.commit()
+    return cur.rowcount > 0

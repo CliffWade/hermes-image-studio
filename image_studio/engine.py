@@ -26,6 +26,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 28,
         "max_steps": 50,
         "size_format": "object",
+        "price": 0.03,
+        "supports_negative": True,
     },
     "flux-klein": {
         "endpoint": "https://fal.run/fal-ai/flux-2/klein/9b",
@@ -34,6 +36,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 28,
         "max_steps": 40,
         "size_format": "object",
+        "price": 0.006,
+        "supports_negative": True,
     },
     "flux-klein-v1": {
         "endpoint": "https://fal.run/fal-ai/flux/klein/9b",
@@ -42,6 +46,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 28,
         "max_steps": 40,
         "size_format": "object",
+        "price": 0.006,
+        "supports_negative": True,
     },
     "flux-2-pro": {
         "endpoint": "https://fal.run/fal-ai/flux-2-pro",
@@ -50,6 +56,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 28,
         "max_steps": 50,
         "size_format": "image_size_preset",
+        "price": 0.04,
+        "supports_negative": True,
     },
     "gpt-image-1.5": {
         "endpoint": "https://fal.run/fal-ai/gpt-image-1.5",
@@ -58,6 +66,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 8,
         "max_steps": 20,
         "size_format": "gpt_literal",
+        "price": 0.034,
+        "supports_negative": False,
     },
     "gpt-image-2": {
         "endpoint": "https://fal.run/fal-ai/gpt-image-2",
@@ -66,6 +76,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": 8,
         "max_steps": 20,
         "size_format": "image_size_preset",
+        "price": 0.08,
+        "supports_negative": False,
     },
     "nano-banana-2": {
         "endpoint": "https://fal.run/fal-ai/nano-banana-2",
@@ -75,6 +87,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "max_steps": None,
         "size_format": "aspect_ratio_enum",
         "extra_params": {"output_format": "png"},
+        "price": 0.08,
+        "supports_negative": False,
     },
     "nano-banana-pro": {
         "endpoint": "https://fal.run/fal-ai/nano-banana-pro",
@@ -84,6 +98,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "max_steps": None,
         "size_format": "aspect_ratio_enum",
         "extra_params": {"output_format": "png", "safety_tolerance": "5"},
+        "price": 0.15,
+        "supports_negative": False,
     },
     "clarity-upscaler": {
         "endpoint": "https://fal.run/fal-ai/clarity-upscaler",
@@ -92,6 +108,8 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "default_steps": None,
         "max_steps": None,
         "size_format": None,
+        "price": 0.04,
+        "supports_negative": False,
     },
 }
 
@@ -106,6 +124,12 @@ ASPECT_RATIO_SIZES: Dict[str, Dict[str, int]] = {
     "square": {"width": 1024, "height": 1024},
     "landscape": {"width": 1344, "height": 768},
     "portrait": {"width": 768, "height": 1344},
+    # Social-ready formats
+    "twitter-post": {"width": 1200, "height": 675},
+    "twitter-header": {"width": 1500, "height": 500},
+    "instagram-story": {"width": 1080, "height": 1920},
+    "instagram-post": {"width": 1080, "height": 1080},
+    "youtube-thumb": {"width": 1280, "height": 720},
 }
 
 ASPECT_RATIO_ALIASES: Dict[str, str] = {
@@ -114,7 +138,34 @@ ASPECT_RATIO_ALIASES: Dict[str, str] = {
     "9:16": "portrait",
     "wide": "landscape",
     "tall": "portrait",
+    "social": "twitter-post",
+    "x-post": "twitter-post",
+    "twitter": "twitter-post",
+    "x-header": "twitter-header",
+    "banner": "twitter-header",
+    "story": "instagram-story",
+    "ig-story": "instagram-story",
+    "ig-post": "instagram-post",
+    "yt": "youtube-thumb",
+    "youtube": "youtube-thumb",
+    "video-thumb": "youtube-thumb",
 }
+
+# Base (canonical) aspect ratios used when a model can't express a
+# non-standard social size. Social sizes always fall back to their
+# closest standard shape.
+_SOCIAL_BASE: Dict[str, str] = {
+    "twitter-post": "landscape",
+    "twitter-header": "landscape",
+    "instagram-story": "portrait",
+    "instagram-post": "square",
+    "youtube-thumb": "landscape",
+}
+
+
+def _base_ratio(ar_key: str) -> str:
+    """Return the canonical base ratio for a given aspect key."""
+    return _SOCIAL_BASE.get(ar_key, ar_key)
 
 # Size format mappings for models that don't use the standard {width, height} object
 # GPT Image 1.5 uses literal dimension strings
@@ -231,11 +282,22 @@ def generate(
     aspect_ratio: str = "landscape",
     seed: int = -1,
     steps: Optional[int] = None,
+    negative_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate an image via FAL.
 
+    Args:
+        prompt: What to generate.
+        model: Model key from MODELS.
+        aspect_ratio: Aspect ratio key (square, landscape, portrait, or a
+            social-ready alias like twitter-post, instagram-story).
+        seed: Random seed (-1 = random).
+        steps: Inference steps (auto if None).
+        negative_prompt: Things to avoid (only supported by FLUX models).
+
     Returns:
-        dict with keys: image_url, seed, model, preset_name (or None)
+        dict with keys: image_url, seed, model, preset_name, steps,
+        aspect_ratio, width, height, cost_usd
     """
     model_info = MODELS.get(model)
     if model_info is None:
@@ -245,6 +307,8 @@ def generate(
 
     ar_key = resolve_aspect_ratio(aspect_ratio)
     size_format = model_info.get("size_format", "object")
+    # For non-object formats, fall back to the closest standard ratio
+    effective_ar = ar_key if size_format == "object" else _base_ratio(ar_key)
 
     # Build payload based on model's size format
     payload: Dict[str, Any] = {"prompt": prompt}
@@ -254,23 +318,32 @@ def generate(
         payload["image_size"] = size
         w, h = size["width"], size["height"]
     elif size_format == "gpt_literal":
-        dims_str = GPT_LITERAL_SIZES[ar_key]
+        dims_str = GPT_LITERAL_SIZES[effective_ar]
         payload["image_size"] = dims_str
         dims = dims_str.split("x")
         w, h = int(dims[0]), int(dims[1])
     elif size_format == "image_size_preset":
-        preset = IMAGE_SIZE_PRESETS[ar_key]
+        preset = IMAGE_SIZE_PRESETS[effective_ar]
         payload["image_size"] = preset
-        canon = ASPECT_RATIO_SIZES[ar_key]
+        canon = ASPECT_RATIO_SIZES[effective_ar]
         w, h = canon["width"], canon["height"]
     elif size_format == "aspect_ratio_enum":
-        payload["aspect_ratio"] = ASPECT_RATIO_ENUMS[ar_key]
-        canon = ASPECT_RATIO_SIZES[ar_key]
+        payload["aspect_ratio"] = ASPECT_RATIO_ENUMS[effective_ar]
+        canon = ASPECT_RATIO_SIZES[effective_ar]
         w, h = canon["width"], canon["height"]
     else:
         size = ASPECT_RATIO_SIZES[ar_key]
         payload["image_size"] = size
         w, h = size["width"], size["height"]
+
+    # Negative prompts (FLUX models only)
+    if negative_prompt:
+        if not model_info.get("supports_negative", False):
+            raise ValueError(
+                f"Model '{model}' does not support negative prompts. "
+                "Use a FLUX model (flux-pro, flux-klein, flux-2-pro) instead."
+            )
+        payload["negative_prompt"] = negative_prompt
 
     # Nano Banana models don't use inference steps; skip if not defined
     if model_info.get("default_steps") is not None:
@@ -300,6 +373,7 @@ def generate(
         "aspect_ratio": ar_key,
         "width": w,
         "height": h,
+        "cost_usd": model_info.get("price", 0.0),
     }
 
 
@@ -337,6 +411,7 @@ def upscale(
     return {
         "image_url": url,
         "scale": scale,
+        "cost_usd": MODELS["clarity-upscaler"].get("price", 0.0),
     }
 
 
@@ -416,6 +491,7 @@ def edit(
         "aspect_ratio": ar_key,
         "width": w,
         "height": h,
+        "cost_usd": model_info.get("price", 0.0),
     }
 
 

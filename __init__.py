@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from tools.registry import tool_error, tool_result
 
-from image_studio import engine, history, organizer, presets
+from image_studio import engine, gallery, history, organizer, presets
 
 # ---------------------------------------------------------------------------
 # Tool schemas (JSON Schema for each tool)
@@ -46,8 +46,12 @@ GENERATE_SCHEMA = {
             },
             "aspect_ratio": {
                 "type": "string",
-                "description": 'Aspect ratio: "landscape" (16:9), "square" (1:1), or "portrait" (9:16).',
+                "description": 'Aspect ratio: "landscape" (16:9), "square" (1:1), "portrait" (9:16), or a social-ready alias like "twitter-post" (1200x675), "twitter-header" (1500x500), "instagram-story" (1080x1920), "youtube-thumb" (1280x720).',
                 "default": "landscape",
+            },
+            "negative_prompt": {
+                "type": "string",
+                "description": "Things to avoid in the image, e.g. 'no people, no text, no watermark'. Only supported by FLUX models.",
             },
             "seed": {
                 "type": "integer",
@@ -96,8 +100,12 @@ BATCH_SCHEMA = {
             },
             "aspect_ratio": {
                 "type": "string",
-                "description": 'Aspect ratio: "landscape", "square", or "portrait".',
+                "description": 'Aspect ratio: "landscape", "square", "portrait", or a social alias like "twitter-post".',
                 "default": "landscape",
+            },
+            "negative_prompt": {
+                "type": "string",
+                "description": "Things to avoid in the image (FLUX models only).",
             },
         },
         "required": ["prompt"],
@@ -110,6 +118,94 @@ PRESETS_SCHEMA = {
     "parameters": {
         "type": "object",
         "properties": {},
+    },
+}
+
+GALLERY_SCHEMA = {
+    "name": "image_studio_gallery",
+    "description": "Generate a self-contained HTML gallery of all images you have created. Opens in any browser. Shows thumbnails, prompts, models, seeds, and cost. Filter by preset or model.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "limit": {
+                "type": "integer",
+                "description": "Max entries to include (0 = all).",
+                "default": 0,
+            },
+        },
+    },
+}
+
+SAVE_PROMPT_SCHEMA = {
+    "name": "image_studio_save_prompt",
+    "description": "Save a prompt to the library for reuse. You can re-generate it later by name with image_studio_load_prompt. Overwrites an existing prompt with the same name.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Short memorable name, e.g. 'desert-sunrise' or 'caturday'.",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "The full prompt to save.",
+            },
+            "preset": {
+                "type": "string",
+                "description": "Style preset to use when generating.",
+                "default": "cinematic",
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "description": 'Aspect ratio: "landscape", "square", "portrait", or social alias.',
+                "default": "landscape",
+            },
+        },
+        "required": ["name", "prompt"],
+    },
+}
+
+LOAD_PROMPT_SCHEMA = {
+    "name": "image_studio_load_prompt",
+    "description": "Generate from a saved prompt by name. Use image_studio_prompts to list saved prompts, or image_studio_save_prompt to add one.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Name of the saved prompt to generate from.",
+            },
+            "seed": {
+                "type": "integer",
+                "description": "Random seed. -1 = random.",
+                "default": -1,
+            },
+        },
+        "required": ["name"],
+    },
+}
+
+PROMPTS_SCHEMA = {
+    "name": "image_studio_prompts",
+    "description": "List all saved prompts in the prompt library. Shows name, prompt, preset, model, and aspect ratio. Use image_studio_save_prompt to add, image_studio_delete_prompt to remove.",
+    "parameters": {
+        "type": "object",
+        "properties": {},
+    },
+}
+
+DELETE_PROMPT_SCHEMA = {
+    "name": "image_studio_delete_prompt",
+    "description": "Delete a saved prompt from the library by name.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Name of the saved prompt to delete.",
+            },
+        },
+        "required": ["name"],
     },
 }
 
@@ -176,6 +272,7 @@ def _generate_and_save(
     preset_name: str = "cinematic",
     aspect_ratio: str = "landscape",
     seed: int = -1,
+    negative_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run a generation, save the output, record history, return results."""
     # Apply preset
@@ -191,6 +288,7 @@ def _generate_and_save(
         aspect_ratio=aspect_ratio,
         seed=seed,
         steps=steps,
+        negative_prompt=negative_prompt,
     )
 
     # Save locally
@@ -214,6 +312,7 @@ def _generate_and_save(
         height=gen.get("height", 0),
         image_url=gen["image_url"],
         file_path=file_path,
+        cost_usd=gen.get("cost_usd", 0.0),
     )
 
     return {
@@ -224,6 +323,7 @@ def _generate_and_save(
         "model": gen["model"],
         "preset": preset_name,
         "aspect_ratio": gen.get("aspect_ratio", aspect_ratio),
+        "cost_usd": gen.get("cost_usd", 0.0),
     }
 
 
@@ -236,9 +336,10 @@ def _handle_generate(prompt: str, **kwargs: Any) -> str:
     preset_name = kwargs.get("preset", "cinematic")
     aspect_ratio = kwargs.get("aspect_ratio", "landscape")
     seed = int(kwargs.get("seed", -1))
+    negative_prompt = kwargs.get("negative_prompt")
 
     try:
-        result = _generate_and_save(prompt, preset_name, aspect_ratio, seed)
+        result = _generate_and_save(prompt, preset_name, aspect_ratio, seed, negative_prompt)
         return tool_result(
             result,
             title="Image Generated",
@@ -290,6 +391,7 @@ def _handle_upscale(image_url: str, **kwargs: Any) -> str:
                 "image_url": upscaled["image_url"],
                 "file_path": file_path,
                 "scale": upscaled.get("scale", 2),
+                "cost_usd": upscaled.get("cost_usd", 0.0),
             },
             title="Image Upscaled",
             emoji="🔍",
@@ -302,6 +404,7 @@ def _handle_batch(prompt: str, **kwargs: Any) -> str:
     count = min(int(kwargs.get("count", 4)), 8)
     preset_name = kwargs.get("preset", "cinematic")
     aspect_ratio = kwargs.get("aspect_ratio", "landscape")
+    negative_prompt = kwargs.get("negative_prompt")
 
     results: List[Dict[str, Any]] = []
     errors: List[str] = []
@@ -313,6 +416,7 @@ def _handle_batch(prompt: str, **kwargs: Any) -> str:
                 preset_name=preset_name,
                 aspect_ratio=aspect_ratio,
                 seed=-1,  # random each time
+                negative_prompt=negative_prompt,
             )
             results.append(result)
         except (ValueError, RuntimeError, PermissionError) as exc:
@@ -322,11 +426,13 @@ def _handle_batch(prompt: str, **kwargs: Any) -> str:
         {
             "total": len(results),
             "errors": errors if errors else None,
+            "total_cost_usd": round(sum(r.get("cost_usd", 0.0) for r in results), 4),
             "generations": [
                 {
                     "gen_id": r["gen_id"],
                     "seed": r["seed"],
                     "file_path": r["file_path"],
+                    "cost_usd": r.get("cost_usd", 0.0),
                 }
                 for r in results
             ],
@@ -343,6 +449,96 @@ def _handle_presets(**kwargs: Any) -> str:
         title="Available Style Presets",
         emoji="🎭",
     )
+
+
+def _handle_gallery(**kwargs: Any) -> str:
+    limit = int(kwargs.get("limit", 0))
+    try:
+        path = gallery.build_gallery(limit=limit)
+        return tool_result(
+            {"gallery_path": path, "message": "Open this file in a browser to view your gallery."},
+            title="Gallery Generated",
+            emoji="🖼️",
+        )
+    except Exception as exc:
+        return tool_error(f"Gallery failed: {exc}")
+
+
+def _handle_save_prompt(name: str, prompt: str, **kwargs: Any) -> str:
+    preset_name = kwargs.get("preset", "cinematic")
+    aspect_ratio = kwargs.get("aspect_ratio", "landscape")
+    try:
+        pid = history.save_prompt(
+            name, prompt, preset=preset_name, aspect_ratio=aspect_ratio
+        )
+        return tool_result(
+            {"id": pid, "name": name, "saved": True},
+            title=f"Prompt Saved: {name}",
+            emoji="💾",
+        )
+    except Exception as exc:
+        return tool_error(f"Could not save prompt: {exc}")
+
+
+def _handle_load_prompt(name: str, **kwargs: Any) -> str:
+    seed = int(kwargs.get("seed", -1))
+    try:
+        saved = history.get_prompt(name)
+        if not saved:
+            return tool_error(
+                f"No saved prompt named '{name}'. Use image_studio_prompts to list saved prompts."
+            )
+        result = _generate_and_save(
+            saved["prompt"],
+            preset_name=saved.get("preset", "cinematic"),
+            aspect_ratio=saved.get("aspect_ratio", "landscape"),
+            seed=seed,
+        )
+        return tool_result(
+            {
+                "name": name,
+                "prompt": saved["prompt"],
+                "preset": saved.get("preset"),
+                "gen_id": result["gen_id"],
+                "image_url": result["image_url"],
+                "file_path": result["file_path"],
+                "seed": result["seed"],
+                "cost_usd": result.get("cost_usd", 0.0),
+            },
+            title=f"Generated from: {name}",
+            emoji="🔁",
+        )
+    except (ValueError, RuntimeError, PermissionError) as exc:
+        return tool_error(str(exc))
+
+
+def _handle_prompts(**kwargs: Any) -> str:
+    saved = history.list_prompts()
+    if not saved:
+        return tool_result(
+            {"message": "No saved prompts yet. Use image_studio_save_prompt to add one."},
+            title="Prompt Library (empty)",
+            emoji="📚",
+        )
+    return tool_result(
+        {"prompts": saved, "total": len(saved)},
+        title=f"Prompt Library ({len(saved)} saved)",
+        emoji="📚",
+    )
+
+
+def _handle_delete_prompt(name: str, **kwargs: Any) -> str:
+    try:
+        deleted = history.delete_prompt(name)
+        if not deleted:
+            return tool_error(f"No saved prompt named '{name}'.")
+        return tool_result(
+            {"name": name, "deleted": True},
+            title=f"Prompt Deleted: {name}",
+            emoji="🗑️",
+        )
+    except Exception as exc:
+        return tool_error(f"Could not delete prompt: {exc}")
 
 
 def _handle_edit(image_url: str, prompt: str, **kwargs: Any) -> str:
@@ -414,11 +610,18 @@ def _handle_history(**kwargs: Any) -> str:
             "prompt": e["prompt"],
             "preset": e.get("preset"),
             "seed": e["seed"],
+            "model": e.get("model"),
+            "cost_usd": e.get("cost_usd", 0.0),
             "file_path": e.get("file_path", ""),
         })
 
     return tool_result(
-        {"generations": formatted, "total": history.count_generations()},
+        {
+            "generations": formatted,
+            "total": history.count_generations(),
+            "recent_cost_usd": history.recent_cost(limit),
+            "total_cost_usd": history.total_cost(),
+        },
         title=f"Generation History (last {len(entries)})",
         emoji="📜",
     )
@@ -434,6 +637,11 @@ _TOOLS = (
     ("image_studio_upscale", UPSCALE_SCHEMA, _handle_upscale, "🔍"),
     ("image_studio_batch", BATCH_SCHEMA, _handle_batch, "📸"),
     ("image_studio_presets", PRESETS_SCHEMA, _handle_presets, "🎭"),
+    ("image_studio_gallery", GALLERY_SCHEMA, _handle_gallery, "🖼️"),
+    ("image_studio_save_prompt", SAVE_PROMPT_SCHEMA, _handle_save_prompt, "💾"),
+    ("image_studio_load_prompt", LOAD_PROMPT_SCHEMA, _handle_load_prompt, "🔁"),
+    ("image_studio_prompts", PROMPTS_SCHEMA, _handle_prompts, "📚"),
+    ("image_studio_delete_prompt", DELETE_PROMPT_SCHEMA, _handle_delete_prompt, "🗑️"),
     ("image_studio_history", HISTORY_SCHEMA, _handle_history, "📜"),
 )
 
