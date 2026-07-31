@@ -98,6 +98,14 @@ PRESETS: Dict[str, Dict[str, Any]] = {
         "steps": 8,
         "model": "gpt-image-2",
     },
+    "banana-photo": {
+        "name": "Nano Banana (Text + Realism)",
+        "description": "Google's Nano Banana 2 excels at photorealistic detail, accurate text rendering, and natural-language editing. Use for products, signs, and scenes where realism and legible text matter.",
+        "prefix": "",
+        "suffix": ", photorealistic, accurate text rendering, sharp detail, natural lighting, true to life",
+        "steps": None,
+        "model": "nano-banana-2",
+    },
 }
 
 # ---------------------------------------------------------------------------

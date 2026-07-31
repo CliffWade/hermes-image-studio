@@ -67,6 +67,24 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "max_steps": 20,
         "size_format": "image_size_preset",
     },
+    "nano-banana-2": {
+        "endpoint": "https://fal.run/fal-ai/nano-banana-2",
+        "display": "Nano Banana 2 (Gemini)",
+        "description": "Google's newest image generation and editing model. State of the art for fast generation and natural-language edits.",
+        "default_steps": None,
+        "max_steps": None,
+        "size_format": "aspect_ratio_enum",
+        "extra_params": {"output_format": "png"},
+    },
+    "nano-banana-pro": {
+        "endpoint": "https://fal.run/fal-ai/nano-banana-pro",
+        "display": "Nano Banana Pro (Gemini 3 Pro Image)",
+        "description": "Gemini 3 Pro Image. Reasoning depth, strong text rendering, and natural-language editing.",
+        "default_steps": None,
+        "max_steps": None,
+        "size_format": "aspect_ratio_enum",
+        "extra_params": {"output_format": "png", "safety_tolerance": "5"},
+    },
     "clarity-upscaler": {
         "endpoint": "https://fal.run/fal-ai/clarity-upscaler",
         "display": "Clarity Upscaler",
@@ -111,6 +129,13 @@ IMAGE_SIZE_PRESETS: Dict[str, str] = {
     "square": "square_hd",
     "landscape": "landscape_16_9",
     "portrait": "portrait_16_9",
+}
+
+# Nano Banana (Gemini) models use aspect ratio enums like "16:9", "1:1", "9:16"
+ASPECT_RATIO_ENUMS: Dict[str, str] = {
+    "square": "1:1",
+    "landscape": "16:9",
+    "portrait": "9:16",
 }
 
 
@@ -221,13 +246,8 @@ def generate(
     ar_key = resolve_aspect_ratio(aspect_ratio)
     size_format = model_info.get("size_format", "object")
 
-    steps = steps if steps is not None else model_info["default_steps"]
-    if model_info["max_steps"] and steps > model_info["max_steps"]:
-        steps = model_info["max_steps"]
-
     # Build payload based on model's size format
     payload: Dict[str, Any] = {"prompt": prompt}
-    size_format = model_info.get("size_format", "object")
 
     if size_format == "object":
         size = ASPECT_RATIO_SIZES[ar_key]
@@ -243,12 +263,28 @@ def generate(
         payload["image_size"] = preset
         canon = ASPECT_RATIO_SIZES[ar_key]
         w, h = canon["width"], canon["height"]
+    elif size_format == "aspect_ratio_enum":
+        payload["aspect_ratio"] = ASPECT_RATIO_ENUMS[ar_key]
+        canon = ASPECT_RATIO_SIZES[ar_key]
+        w, h = canon["width"], canon["height"]
     else:
         size = ASPECT_RATIO_SIZES[ar_key]
         payload["image_size"] = size
         w, h = size["width"], size["height"]
 
-    payload["num_inference_steps"] = steps
+    # Nano Banana models don't use inference steps; skip if not defined
+    if model_info.get("default_steps") is not None:
+        steps = steps if steps is not None else model_info["default_steps"]
+        if model_info["max_steps"] and steps > model_info["max_steps"]:
+            steps = model_info["max_steps"]
+        payload["num_inference_steps"] = steps
+    else:
+        steps = None
+
+    # Merge model-specific extra params (output_format, safety_tolerance, etc.)
+    for key, val in (model_info.get("extra_params") or {}).items():
+        payload[key] = val
+
     payload["seed"] = seed
 
     result = _request(model_info["endpoint"], payload)
@@ -328,10 +364,6 @@ def edit(
     ar_key = resolve_aspect_ratio(aspect_ratio)
     size_format = model_info.get("size_format", "object")
 
-    steps = steps if steps is not None else model_info["default_steps"]
-    if model_info["max_steps"] and steps > model_info["max_steps"]:
-        steps = model_info["max_steps"]
-
     payload: Dict[str, Any] = {
         "prompt": prompt,
         "image_urls": [image_url],
@@ -345,12 +377,27 @@ def edit(
         payload["image_size"] = IMAGE_SIZE_PRESETS[ar_key]
         canon = ASPECT_RATIO_SIZES[ar_key]
         w, h = canon["width"], canon["height"]
+    elif size_format == "aspect_ratio_enum":
+        payload["aspect_ratio"] = ASPECT_RATIO_ENUMS[ar_key]
+        canon = ASPECT_RATIO_SIZES[ar_key]
+        w, h = canon["width"], canon["height"]
     else:
         size = ASPECT_RATIO_SIZES[ar_key]
         payload["image_size"] = size
         w, h = size["width"], size["height"]
 
-    payload["num_inference_steps"] = steps
+    # Nano Banana models don't use inference steps; skip if not defined
+    if model_info.get("default_steps") is not None:
+        steps = steps if steps is not None else model_info["default_steps"]
+        if model_info["max_steps"] and steps > model_info["max_steps"]:
+            steps = model_info["max_steps"]
+        payload["num_inference_steps"] = steps
+    else:
+        steps = None
+
+    # Merge model-specific extra params
+    for key, val in (model_info.get("extra_params") or {}).items():
+        payload[key] = val
 
     # Edit endpoints use the same base URL with /edit suffix
     base_endpoint = model_info["endpoint"]

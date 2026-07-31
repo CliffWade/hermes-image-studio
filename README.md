@@ -3,21 +3,23 @@
 ![Hero](hero.png)
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-10 style presets across 7 FLUX and GPT Image models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
+11 style presets across 9 FLUX, GPT Image, and Nano Banana models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
 
 ## Features
 
-- **8 Style Presets** — Cinematic, photorealistic, vintage, fantasy, illustration,
+- **8 FLUX Presets** — Cinematic, photorealistic, vintage, fantasy, illustration,
   minimalist, noir, and studio for FLUX models. Each preset tunes prompt phrasing,
   inference steps, and model selection for consistent visual results.
 - **2 GPT Presets** — `gpt-photo` for text rendering and complex multi-subject
   scenes (GPT Image 1.5), and `gpt-art` for creative and stylized interpretation
   (GPT Image 2).
-- **7 Models** — FLUX Pro, FLUX 2 Klein 9B, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
-  Clarity Upscaler, and the legacy FLUX Klein v1 for compatibility. Choose the right tool for the job.
+- **1 Nano Banana Preset** — `banana-photo` for photorealistic detail, accurate
+  text rendering, and natural-language edits (Nano Banana 2).
+- **9 Models** — FLUX Pro, FLUX 2 Klein 9B, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
+  Nano Banana 2, Nano Banana Pro, Clarity Upscaler, and the legacy FLUX Klein v1 for compatibility.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
 - **Image-to-Image Editing** — Transform any generated image with a new prompt using GPT Image 1.5. "Turn this photo into a watercolor painting" or "Add a dirt path leading to the door."
 - **Batch Generation** — Generate 2-8 variants simultaneously with random seeds
@@ -123,6 +125,7 @@ image_studio_history(limit=5)
 | `studio` | Controlled lighting, clean background, product-ready | 28 | FLUX Pro |
 | `gpt-photo` | Text rendering, complex scenes, specific constraints | 8 | GPT Image 1.5 |
 | `gpt-art` | Artistic styles, creative interpretation, stylized | 8 | GPT Image 2 |
+| `banana-photo` | Photorealism, text rendering, natural-language edits | auto | Nano Banana 2 |
 
 ## Output Location
 
