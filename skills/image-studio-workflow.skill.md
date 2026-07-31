@@ -7,8 +7,11 @@ description: "Full image creation workflow using Hermes Image Studio. Guides the
 
 End-to-end skill for producing publish-ready images using the Hermes
 Image Studio plugin (tools: `image_studio_presets`,
-`image_studio_generate`, `image_studio_edit`, `image_studio_batch`,
-`image_studio_upscale`, `image_studio_history`).
+`image_studio_generate`, `image_studio_edit`, `image_studio_inpaint`,
+`image_studio_animate`, `image_studio_batch`,
+`image_studio_upscale`, `image_studio_gallery`,
+`image_studio_save_prompt`, `image_studio_load_prompt`,
+`image_studio_prompts`, `image_studio_history`).
 
 ## The Pipeline
 
@@ -38,6 +41,9 @@ If the result needs refinement:
 - Change the preset for a different visual style
 - Add more detail to the prompt for specificity
 - Use a specific seed to lock composition while changing the prompt
+- Add a negative prompt to exclude unwanted elements ("no people, no text")
+- Use `image_studio_edit` to transform the image with a new prompt
+- Use `image_studio_inpaint` with a mask to change only one region
 
 ### Phase 4: Batch (Optional)
 
@@ -49,6 +55,11 @@ Present all variants and pick the strongest direction.
 For the final selected image, run `image_studio_upscale` with the
 image URL from the generation. This produces a 2x higher resolution
 version suitable for Twitter, printing, or publication.
+
+### Phase 5b: Animate (Optional)
+
+If the user wants motion, run `image_studio_animate` with the image
+URL and a motion prompt. The MP4 is saved to the `videos/` subfolder.
 
 ### Phase 6: Deliver
 

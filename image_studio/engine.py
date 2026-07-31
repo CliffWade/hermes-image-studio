@@ -111,6 +111,43 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "price": 0.04,
         "supports_negative": False,
     },
+    # --- Image-to-video models ---
+    "kling-video": {
+        "endpoint": "https://fal.run/fal-ai/kling-video/v3/pro/image-to-video",
+        "display": "Kling Video v3 Pro",
+        "description": "Kling v3 image-to-video. High quality motion synthesis, camera movement control, up to 10s clips.",
+        "default_steps": None,
+        "max_steps": None,
+        "size_format": "video_ratio",
+        "price": 0.35,
+        "supports_negative": False,
+        "kind": "video",
+        "extra_params": {"duration": "5"},
+    },
+    "veo-fast": {
+        "endpoint": "https://fal.run/fal-ai/veo3.1/fast/image-to-video",
+        "display": "Veo 3.1 Fast",
+        "description": "Google Veo 3.1 fast image-to-video. Fast, high-quality motion synthesis with audio support.",
+        "default_steps": None,
+        "max_steps": None,
+        "size_format": "video_ratio",
+        "price": 0.40,
+        "supports_negative": False,
+        "kind": "video",
+        "extra_params": {"duration": "5s", "fps": 24},
+    },
+    # --- Inpainting model ---
+    "flux-inpaint": {
+        "endpoint": "https://fal.run/fal-ai/flux-pro/v1/inpaint",
+        "display": "FLUX Pro Inpaint",
+        "description": "FLUX Pro region inpainting. Replaces only the masked area of an image while preserving everything else.",
+        "default_steps": 28,
+        "max_steps": 50,
+        "size_format": "object",
+        "price": 0.04,
+        "supports_negative": True,
+        "kind": "inpaint",
+    },
 }
 
 DEFAULT_MODEL = "flux-pro"
@@ -187,6 +224,18 @@ ASPECT_RATIO_ENUMS: Dict[str, str] = {
     "square": "1:1",
     "landscape": "16:9",
     "portrait": "9:16",
+}
+
+# Video models use ratio strings like "16:9" directly
+VIDEO_RATIOS: Dict[str, str] = {
+    "square": "1:1",
+    "landscape": "16:9",
+    "portrait": "9:16",
+    "twitter-post": "16:9",
+    "twitter-header": "16:9",
+    "instagram-story": "9:16",
+    "instagram-post": "1:1",
+    "youtube-thumb": "16:9",
 }
 
 
@@ -489,6 +538,134 @@ def edit(
         "model": model,
         "steps": steps,
         "aspect_ratio": ar_key,
+        "width": w,
+        "height": h,
+        "cost_usd": model_info.get("price", 0.0),
+    }
+
+
+def animate(
+    image_url: str,
+    prompt: str,
+    *,
+    model: str = "kling-video",
+    aspect_ratio: str = "landscape",
+    duration: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Animate a still image into a short video clip via FAL.
+
+    Args:
+        image_url: Public URL of the source image.
+        prompt: What motion / camera work to add ("slow dolly-in on the subject, waves lapping").
+        model: Video model key ('kling-video' or 'veo-fast').
+        aspect_ratio: Output ratio (landscape, portrait, square, or social alias).
+        duration: Clip length. Model clamps. Kling: '5' or '10'. Veo: '5s' or '8s'.
+
+    Returns:
+        dict with keys: video_url, model, aspect_ratio, cost_usd
+    """
+    model_info = MODELS.get(model)
+    if model_info is None:
+        raise ValueError(
+            f"Unknown video model '{model}'. Available: kling-video, veo-fast"
+        )
+    if model_info.get("kind") != "video":
+        raise ValueError(f"Model '{model}' is not a video model.")
+
+    ar_key = resolve_aspect_ratio(aspect_ratio)
+    ratio = VIDEO_RATIOS.get(ar_key, "16:9")
+
+    payload: Dict[str, Any] = {
+        "prompt": prompt,
+        "image_url": image_url,
+        "aspect_ratio": ratio,
+    }
+    # Model-specific extra params (duration, fps, etc.)
+    for key, val in (model_info.get("extra_params") or {}).items():
+        payload[key] = val
+    if duration:
+        payload["duration"] = duration
+
+    result = _request(model_info["endpoint"], payload, timeout=300)
+    video = result.get("video") or {}
+    video_url = video.get("url") or result.get("video_url") or ""
+    if not video_url:
+        raise RuntimeError(f"FAL returned no video: {json.dumps(result)[:300]}")
+
+    return {
+        "video_url": video_url,
+        "model": model,
+        "aspect_ratio": ar_key,
+        "duration": payload.get("duration"),
+        "cost_usd": model_info.get("price", 0.0),
+    }
+
+
+def inpaint(
+    image_url: str,
+    mask_url: str,
+    prompt: str,
+    *,
+    model: str = "flux-inpaint",
+    seed: int = -1,
+    steps: Optional[int] = None,
+    negative_prompt: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Inpaint (region-edit) an image via FAL using a mask.
+
+    Args:
+        image_url: Public URL of the source image.
+        mask_url: Public URL of a black-and-white mask image. White areas are
+            regenerated; black areas are preserved.
+        prompt: What to generate in the masked region.
+        model: Inpaint model key ('flux-inpaint').
+        seed: Random seed (-1 = random).
+        steps: Inference steps.
+        negative_prompt: Things to avoid (FLUX models only).
+
+    Returns:
+        dict with keys: image_url, model, seed, width, height, cost_usd
+    """
+    model_info = MODELS.get(model)
+    if model_info is None:
+        raise ValueError(f"Unknown model '{model}'. Available: flux-inpaint")
+    if model_info.get("kind") != "inpaint":
+        raise ValueError(f"Model '{model}' is not an inpaint model.")
+
+    size = ASPECT_RATIO_SIZES["square"]
+    w, h = size["width"], size["height"]
+
+    payload: Dict[str, Any] = {
+        "prompt": prompt,
+        "image_url": image_url,
+        "mask_url": mask_url,
+    }
+    if negative_prompt:
+        if not model_info.get("supports_negative", False):
+            raise ValueError(f"Model '{model}' does not support negative prompts.")
+        payload["negative_prompt"] = negative_prompt
+
+    if model_info.get("default_steps") is not None:
+        steps = steps if steps is not None else model_info["default_steps"]
+        if model_info["max_steps"] and steps > model_info["max_steps"]:
+            steps = model_info["max_steps"]
+        payload["num_inference_steps"] = steps
+    else:
+        steps = None
+
+    payload["seed"] = seed
+
+    result = _request(model_info["endpoint"], payload)
+    images = result.get("images") or []
+    if not images:
+        raise RuntimeError(f"FAL returned no images: {json.dumps(result)[:300]}")
+
+    return {
+        "image_url": images[0]["url"],
+        "seed": result.get("seed", seed),
+        "model": model,
+        "steps": steps,
+        "aspect_ratio": "square",
         "width": w,
         "height": h,
         "cost_usd": model_info.get("price", 0.0),

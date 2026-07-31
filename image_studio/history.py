@@ -93,6 +93,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS videos (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            source_image_url TEXT,
+            prompt      TEXT NOT NULL,
+            model       TEXT NOT NULL,
+            duration    TEXT,
+            aspect_ratio TEXT,
+            video_url   TEXT,
+            file_path   TEXT,
+            cost_usd    REAL DEFAULT 0.0
+        )
+    """)
     # Migration: add cost_usd column if it doesn't exist yet (older DBs)
     cols = [r[1] for r in conn.execute("PRAGMA table_info(generations)").fetchall()]
     if "cost_usd" not in cols:
@@ -282,3 +296,58 @@ def delete_prompt(name: str) -> bool:
     cur = conn.execute("DELETE FROM saved_prompts WHERE name = ?", (name,))
     conn.commit()
     return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Video history
+# ---------------------------------------------------------------------------
+
+
+def record_video(
+    prompt: str,
+    *,
+    model: str = "kling-video",
+    source_image_url: str = "",
+    duration: Optional[str] = None,
+    aspect_ratio: str = "landscape",
+    video_url: str = "",
+    file_path: str = "",
+    cost_usd: float = 0.0,
+) -> int:
+    """Insert a video generation record and return its ID."""
+    conn = _get_conn()
+    cur = conn.execute(
+        """INSERT INTO videos
+           (source_image_url, prompt, model, duration, aspect_ratio,
+            video_url, file_path, cost_usd)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (source_image_url, prompt, model, duration, aspect_ratio,
+         video_url, file_path, float(cost_usd or 0.0)),
+    )
+    conn.commit()
+    return int(cur.lastrowid or 0)
+
+
+def recent_videos(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return the most recent N video generations."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT * FROM videos ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_videos() -> int:
+    """Total videos recorded."""
+    conn = _get_conn()
+    row = conn.execute("SELECT COUNT(*) AS cnt FROM videos").fetchone()
+    return row["cnt"] if row else 0
+
+
+def video_cost() -> float:
+    """Total spend on video generations."""
+    conn = _get_conn()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(cost_usd), 0.0) AS total FROM videos"
+    ).fetchone()
+    return round(float(row["total"]), 4) if row else 0.0

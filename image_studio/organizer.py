@@ -163,3 +163,52 @@ def save_upscaled_image(
         f.write(data)
 
     return filepath
+
+
+def save_media(
+    media_url: str,
+    prompt: str,
+    *,
+    preset: Optional[str] = None,
+    seed: int = -1,
+    suffix: str = "video",
+    ext: str = ".mp4",
+    output_root: Optional[str] = None,
+    subfolder: str = "",
+) -> str:
+    """Download a video (or any media) from a FAL URL and save it locally.
+
+    Args:
+        media_url: Public URL of the media (from FAL response).
+        prompt: Original prompt used (for filename generation).
+        preset: Style preset name (included in filename).
+        seed: Generation seed (included in filename).
+        suffix: Short descriptor added to the filename (e.g. "video").
+        ext: File extension (defaults to .mp4).
+        output_root: Base directory.
+        subfolder: Optional subfolder.
+
+    Returns:
+        Absolute path to the saved file.
+    """
+    root = _ensure_output_root(output_root)
+    if subfolder:
+        root = os.path.join(root, subfolder)
+        os.makedirs(root, exist_ok=True)
+
+    filename = build_filename(
+        prompt, preset=preset, seed=seed, suffix=suffix, ext=ext
+    )
+    filepath = os.path.join(root, filename)
+
+    req = urllib.request.Request(
+        media_url,
+        headers={"User-Agent": "Hermes-ImageStudio/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        data = resp.read()
+
+    with open(filepath, "wb") as f:
+        f.write(data)
+
+    return filepath

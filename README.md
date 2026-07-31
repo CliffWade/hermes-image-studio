@@ -3,7 +3,7 @@
 ![Hero](hero.png)
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-11 style presets across 9 FLUX, GPT Image, and Nano Banana models. Negative prompts, social-ready sizes, prompt library, web gallery, cost tracking, auto-upscaling, and editing, all through FAL.ai.
+11 style presets across 9 FLUX, GPT Image, and Nano Banana models. Negative prompts, social-ready sizes, prompt library, web gallery, cost tracking, inpainting, image-to-video, auto-upscaling, and editing, all through FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
@@ -25,6 +25,8 @@ directly from your Hermes conversations. No running to another tool.
   and YouTube thumbnail dimensions.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
 - **Image-to-Image Editing** — Transform any generated image with a new prompt using GPT Image 1.5. "Turn this photo into a watercolor painting" or "Add a dirt path leading to the door."
+- **Inpainting** — Replace only the masked region of an image while preserving the rest (FLUX Pro Inpaint). Remove objects, change backgrounds, add elements precisely.
+- **Image-to-Video** — Animate any still into a short MP4 clip with Kling v3 Pro or Veo 3.1 Fast. Camera moves, motion, and action from a text prompt.
 - **Prompt Library** — Save your best prompts by name and regenerate them anytime.
 - **Web Gallery** — Generate a self-contained HTML gallery of everything you've created,
   filterable by preset and model.
@@ -86,12 +88,14 @@ That's it. Start a new Hermes session and you're ready.
 
 ## Tools
 
-The plugin registers 11 tools into the `image-studio` toolset:
+The plugin registers 13 tools into the `image-studio` toolset:
 
 | Tool | What it does |
 |------|-------------|
 | `image_studio_generate` | Generate an image with a style preset, negative prompt, and social size |
 | `image_studio_edit` | Edit an existing image with a new prompt (img2img) |
+| `image_studio_inpaint` | Region-edit an image: replace only the masked area (FLUX Pro Inpaint) |
+| `image_studio_animate` | Turn a still image into a short video clip (Kling v3 / Veo 3.1) |
 | `image_studio_upscale` | 2x upscale any generated image |
 | `image_studio_batch` | Generate N variants with random seeds |
 | `image_studio_presets` | List all available presets with descriptions |
@@ -116,6 +120,12 @@ image_studio_generate(prompt="A product shot for a launch tweet", preset="studio
 
 # Edit that image (transform it with a new prompt)
 image_studio_edit(image_url="https://...from-above-generation...", prompt="Add a herd of wild horses in the distance, thunderstorm brewing on the horizon")
+
+# Region-edit: replace only the masked area (mask = white where to regenerate)
+image_studio_inpaint(image_url="https://...", mask_url="https://.../mask.png", prompt="a red sports car parked by the cabin")
+
+# Animate a still into a short video
+image_studio_animate(image_url="https://...from-above-generation...", prompt="slow dolly-in, clouds drifting, golden light shifting", model="kling-video", duration="5")
 
 # Save a prompt for reuse
 image_studio_save_prompt(name="desert-sunrise", prompt="A lone cowboy riding through Monument Valley at sunrise", preset="vintage")

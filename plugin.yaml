@@ -1,11 +1,13 @@
 name: image-studio
-version: 1.5.0
-description: "AI image generation studio for Hermes. 11 presets across 9 models (FLUX 2, GPT Image, Nano Banana). Negative prompts, social sizes, prompt library, gallery, cost tracking, edit, upscale, batch."
+version: 1.6.0
+description: "AI image generation studio for Hermes. 11 presets across 9 models (FLUX 2, GPT Image, Nano Banana). Negative prompts, social sizes, prompt library, gallery, cost tracking, edit, inpaint, image-to-video, upscale, batch."
 author: "Cliff (published on GitHub)"
 kind: backend
 provides_tools:
   - image_studio_generate
   - image_studio_edit
+  - image_studio_inpaint
+  - image_studio_animate
   - image_studio_upscale
   - image_studio_batch
   - image_studio_presets

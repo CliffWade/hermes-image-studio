@@ -209,6 +209,71 @@ DELETE_PROMPT_SCHEMA = {
     },
 }
 
+ANIMATE_SCHEMA = {
+    "name": "image_studio_animate",
+    "description": "Turn a generated still image into a short video clip (image-to-video). Takes a FAL image URL and a motion prompt describing camera movement or action. Uses Kling v3 Pro or Veo 3.1 Fast. The video is saved as an MP4 to your output folder.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "image_url": {
+                "type": "string",
+                "description": "URL of the source image (from a previous generation or edit).",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "What motion to add, e.g. 'slow dolly-in on the subject, waves lapping at the shore'.",
+            },
+            "model": {
+                "type": "string",
+                "description": "Video model: 'kling-video' (Kling v3 Pro, $0.35, 5-10s) or 'veo-fast' (Veo 3.1 Fast, $0.40, 5-8s).",
+                "default": "kling-video",
+            },
+            "aspect_ratio": {
+                "type": "string",
+                "description": 'Output ratio: "landscape", "portrait", "square", or social alias.',
+                "default": "landscape",
+            },
+            "duration": {
+                "type": "string",
+                "description": "Clip length. Kling: '5' or '10'. Veo: '5s' or '8s'. Model clamps.",
+            },
+        },
+        "required": ["image_url", "prompt"],
+    },
+}
+
+INPAINT_SCHEMA = {
+    "name": "image_studio_inpaint",
+    "description": "Region-edit an image: replace only the masked area while preserving the rest. Provide the source image URL and a black-and-white mask URL (white = regenerate, black = keep). Uses FLUX Pro Inpaint.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "image_url": {
+                "type": "string",
+                "description": "URL of the source image.",
+            },
+            "mask_url": {
+                "type": "string",
+                "description": "URL of a black-and-white mask image. White areas are regenerated; black areas are preserved.",
+            },
+            "prompt": {
+                "type": "string",
+                "description": "What to generate inside the masked region, e.g. 'a red sports car' or 'a calm lake'.",
+            },
+            "negative_prompt": {
+                "type": "string",
+                "description": "Things to avoid in the inpainted region.",
+            },
+            "seed": {
+                "type": "integer",
+                "description": "Random seed. -1 = random.",
+                "default": -1,
+            },
+        },
+        "required": ["image_url", "mask_url", "prompt"],
+    },
+}
+
 HISTORY_SCHEMA = {
     "name": "image_studio_history",
     "description": "Browse recent image generations. Shows prompt, preset, seed, model, and file path for each entry. Optionally re-generate a past image with a tweaked prompt.",
@@ -345,7 +410,7 @@ def _handle_generate(prompt: str, **kwargs: Any) -> str:
             title="Image Generated",
             emoji="🎨",
         )
-    except (ValueError, RuntimeError, PermissionError) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         return tool_error(str(exc))
 
 
@@ -396,7 +461,7 @@ def _handle_upscale(image_url: str, **kwargs: Any) -> str:
             title="Image Upscaled",
             emoji="🔍",
         )
-    except (ValueError, RuntimeError, PermissionError) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         return tool_error(str(exc))
 
 
@@ -419,7 +484,7 @@ def _handle_batch(prompt: str, **kwargs: Any) -> str:
                 negative_prompt=negative_prompt,
             )
             results.append(result)
-        except (ValueError, RuntimeError, PermissionError) as exc:
+        except (ValueError, RuntimeError, OSError) as exc:
             errors.append(f"variant {i+1}: {exc}")
 
     return tool_result(
@@ -508,7 +573,7 @@ def _handle_load_prompt(name: str, **kwargs: Any) -> str:
             title=f"Generated from: {name}",
             emoji="🔁",
         )
-    except (ValueError, RuntimeError, PermissionError) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         return tool_error(str(exc))
 
 
@@ -539,6 +604,114 @@ def _handle_delete_prompt(name: str, **kwargs: Any) -> str:
         )
     except Exception as exc:
         return tool_error(f"Could not delete prompt: {exc}")
+
+
+def _handle_animate(image_url: str, prompt: str, **kwargs: Any) -> str:
+    model = kwargs.get("model", "kling-video")
+    aspect_ratio = kwargs.get("aspect_ratio", "landscape")
+    duration = kwargs.get("duration")
+
+    try:
+        result = engine.animate(
+            image_url,
+            prompt,
+            model=model,
+            aspect_ratio=aspect_ratio,
+            duration=duration,
+        )
+
+        # Save the video locally
+        file_path = organizer.save_media(
+            result["video_url"],
+            prompt,
+            preset="video",
+            seed=-1,
+            suffix="video",
+            output_root=_OUTPUT_ROOT,
+            subfolder="videos",
+        )
+
+        # Record video history
+        video_id = history.record_video(
+            prompt=prompt,
+            model=result["model"],
+            source_image_url=image_url,
+            duration=result.get("duration"),
+            aspect_ratio=result.get("aspect_ratio"),
+            video_url=result["video_url"],
+            file_path=file_path,
+            cost_usd=result.get("cost_usd", 0.0),
+        )
+
+        return tool_result(
+            {
+                "video_id": video_id,
+                "video_url": result["video_url"],
+                "file_path": file_path,
+                "model": result["model"],
+                "duration": result.get("duration"),
+                "aspect_ratio": result.get("aspect_ratio") or "landscape",
+                "cost_usd": result.get("cost_usd", 0.0),
+            },
+            title="Video Generated",
+            emoji="🎬",
+        )
+    except (ValueError, RuntimeError, OSError) as exc:
+        return tool_error(str(exc))
+
+
+def _handle_inpaint(image_url: str, mask_url: str, prompt: str, **kwargs: Any) -> str:
+    seed = int(kwargs.get("seed", -1))
+    negative_prompt = kwargs.get("negative_prompt")
+
+    try:
+        result = engine.inpaint(
+            image_url,
+            mask_url,
+            prompt,
+            seed=seed,
+            negative_prompt=negative_prompt,
+        )
+
+        # Save locally
+        file_path = organizer.save_generated_image(
+            result["image_url"],
+            prompt,
+            preset="inpaint",
+            seed=result["seed"],
+            output_root=_OUTPUT_ROOT,
+            subfolder="inpaint",
+        )
+
+        # Record history
+        gen_id = history.record_generation(
+            prompt=prompt,
+            preset="inpaint",
+            model=result["model"],
+            seed=result["seed"],
+            steps=result.get("steps") or 0,
+            aspect_ratio="square",
+            width=result.get("width", 0),
+            height=result.get("height", 0),
+            image_url=result["image_url"],
+            file_path=file_path,
+            cost_usd=result.get("cost_usd", 0.0),
+        )
+
+        return tool_result(
+            {
+                "gen_id": gen_id,
+                "image_url": result["image_url"],
+                "file_path": file_path,
+                "model": result["model"],
+                "seed": result["seed"],
+                "cost_usd": result.get("cost_usd", 0.0),
+            },
+            title="Inpainted",
+            emoji="🧩",
+        )
+    except (ValueError, RuntimeError, OSError) as exc:
+        return tool_error(str(exc))
 
 
 def _handle_edit(image_url: str, prompt: str, **kwargs: Any) -> str:
@@ -587,7 +760,7 @@ def _handle_edit(image_url: str, prompt: str, **kwargs: Any) -> str:
             title="Image Edited",
             emoji="🖌️",
         )
-    except (ValueError, RuntimeError, PermissionError) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         return tool_error(str(exc))
 
 
@@ -634,6 +807,8 @@ def _handle_history(**kwargs: Any) -> str:
 _TOOLS = (
     ("image_studio_generate", GENERATE_SCHEMA, _handle_generate, "🎨"),
     ("image_studio_edit", EDIT_SCHEMA, _handle_edit, "🖌️"),
+    ("image_studio_inpaint", INPAINT_SCHEMA, _handle_inpaint, "🧩"),
+    ("image_studio_animate", ANIMATE_SCHEMA, _handle_animate, "🎬"),
     ("image_studio_upscale", UPSCALE_SCHEMA, _handle_upscale, "🔍"),
     ("image_studio_batch", BATCH_SCHEMA, _handle_batch, "📸"),
     ("image_studio_presets", PRESETS_SCHEMA, _handle_presets, "🎭"),
