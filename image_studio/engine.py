@@ -33,31 +33,34 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "endpoint": "https://fal.run/fal-ai/flux-2/klein/9b",
         "display": "FLUX 2 Klein 9B",
         "description": "Fast (<1s) generation with strong quality from FLUX 2. Great for iteration and quick drafts.",
-        "default_steps": 28,
-        "max_steps": 40,
-        "size_format": "object",
+        "default_steps": 4,
+        "max_steps": 8,
+        "size_format": "image_size_preset",
         "price": 0.006,
         "supports_negative": True,
+        "extra_params": {"output_format": "png"},
     },
     "flux-klein-v1": {
         "endpoint": "https://fal.run/fal-ai/flux/klein/9b",
         "display": "FLUX Klein 9B (v1)",
         "description": "Original FLUX Klein 9B endpoint. Kept for compatibility with older workflows.",
-        "default_steps": 28,
-        "max_steps": 40,
-        "size_format": "object",
+        "default_steps": 4,
+        "max_steps": 8,
+        "size_format": "image_size_preset",
         "price": 0.006,
         "supports_negative": True,
+        "extra_params": {"output_format": "png"},
     },
     "flux-2-pro": {
         "endpoint": "https://fal.run/fal-ai/flux-2-pro",
         "display": "FLUX 2 Pro",
         "description": "Latest FLUX 2 generation. Best overall quality with improved prompt adherence.",
-        "default_steps": 28,
+        "default_steps": 50,
         "max_steps": 50,
         "size_format": "image_size_preset",
         "price": 0.04,
         "supports_negative": True,
+        "extra_params": {"output_format": "png", "guidance_scale": 4.5, "num_images": 1},
     },
     "gpt-image-1.5": {
         "endpoint": "https://fal.run/fal-ai/gpt-image-1.5",
@@ -138,15 +141,16 @@ MODELS: Dict[str, Dict[str, Any]] = {
     },
     # --- Inpainting model ---
     "flux-inpaint": {
-        "endpoint": "https://fal.run/fal-ai/flux-pro/v1/inpaint",
-        "display": "FLUX Pro Inpaint",
-        "description": "FLUX Pro region inpainting. Replaces only the masked area of an image while preserving everything else.",
-        "default_steps": 28,
-        "max_steps": 50,
-        "size_format": "object",
-        "price": 0.04,
-        "supports_negative": True,
+        "endpoint": "https://fal.run/fal-ai/nano-banana-2/edit",
+        "display": "Nano Banana 2 Inpaint",
+        "description": "Region inpainting via Nano Banana 2 (Gemini). Replaces only the masked area of an image while preserving everything else. Pass image_url + mask_url (white = regenerate, black = keep).",
+        "default_steps": None,
+        "max_steps": None,
+        "size_format": "aspect_ratio_enum",
+        "price": 0.08,
+        "supports_negative": False,
         "kind": "inpaint",
+        "extra_params": {"output_format": "png"},
     },
 }
 
@@ -307,7 +311,20 @@ def _request(endpoint: str, payload: Dict[str, Any], timeout: int = 120) -> Dict
 
 def _raise_normalized(detail: Dict[str, Any], status: int) -> None:
     """Turn FAL error payloads into readable Python exceptions."""
-    msg = detail.get("detail") or detail.get("message") or str(detail)
+    raw = detail.get("detail") or detail.get("message") or str(detail)
+    if isinstance(raw, list):
+        # FAL validation errors: [{"type": ..., "loc": [...], "msg": ..., "ctx": {...}}]
+        parts = []
+        for item in raw:
+            if isinstance(item, dict):
+                loc = ".".join(str(x) for x in item.get("loc", []))
+                msg = item.get("msg", "")
+                parts.append(f"{loc}: {msg}" if loc else msg)
+            else:
+                parts.append(str(item))
+        msg = "; ".join(parts) if parts else str(raw)
+    else:
+        msg = str(raw)
     if status == 403:
         raise PermissionError(
             f"FAL API returned 403: {msg}. Check your API key and billing at https://fal.ai."
@@ -637,21 +654,16 @@ def inpaint(
 
     payload: Dict[str, Any] = {
         "prompt": prompt,
-        "image_url": image_url,
-        "mask_url": mask_url,
+        "image_urls": [image_url],
+        "mask_urls": [mask_url],
     }
-    if negative_prompt:
-        if not model_info.get("supports_negative", False):
-            raise ValueError(f"Model '{model}' does not support negative prompts.")
-        payload["negative_prompt"] = negative_prompt
 
-    if model_info.get("default_steps") is not None:
-        steps = steps if steps is not None else model_info["default_steps"]
-        if model_info["max_steps"] and steps > model_info["max_steps"]:
-            steps = model_info["max_steps"]
-        payload["num_inference_steps"] = steps
-    else:
-        steps = None
+    # Merge model-specific extra params (output_format, etc.)
+    for key, val in (model_info.get("extra_params") or {}).items():
+        payload[key] = val
+
+    # Nano Banana models don't use inference steps
+    steps = None
 
     payload["seed"] = seed
 
