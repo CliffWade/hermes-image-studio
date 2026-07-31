@@ -58,8 +58,14 @@ version suitable for Twitter, printing, or publication.
 
 ### Phase 5b: Animate (Optional)
 
-If the user wants motion, run `image_studio_animate` with the image
-URL and a motion prompt. The MP4 is saved to the `videos/` subfolder.
+If the user wants motion from a still:
+- **If BFL/FLUX 3 tools are available** (`bfl_flux3_image_to_video`,
+  gated on Nous Portal paid sign-in), prefer them for highest quality.
+  The opening frame is the source image itself; polling and download are
+  handled by `bfl_flux3_get_result`.
+- **Otherwise** run `image_studio_animate` with the image URL and a
+  motion prompt. The MP4 is saved to the `videos/` subfolder via FAL
+  (Kling v3 Pro or Veo 3.1 Fast).
 
 ### Phase 6: Deliver
 
@@ -75,9 +81,14 @@ Step                  Tool                          When
 Pick a preset        image_studio_presets           Always start here
 Generate             image_studio_generate          One shot
 Edit                 image_studio_edit              Transform an existing image
+Inpaint              image_studio_inpaint           Change only a masked region
 Explore variants     image_studio_batch count=4     User wants options
 Upscale final        image_studio_upscale           Before publishing
+Animate              bfl_flux3_image_to_video*      Premium motion (if available)
+                     image_studio_animate           FAL motion (Kling/Veo)
 Browse history       image_studio_history           Re-find or tweak past work
+Build gallery        image_studio_gallery           Show everything at once
+* bfl_flux3_* needs Nous Portal paid sign-in; otherwise use image_studio_animate
 ```
 
 ## Output Location
