@@ -3,7 +3,7 @@
 ![Hero](hero.png)
 
 **AI image generation plugin for [Hermes Agent](https://hermes-agent.nousresearch.com).**
-10 style presets across 6 FLUX and GPT Image models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
+10 style presets across 7 FLUX and GPT Image models. Auto-upscaling, batch generation, and SQLite history tracking, all through FAL.ai.
 
 Generate publish-ready images for social media, articles, and creative projects
 directly from your Hermes conversations. No running to another tool.
@@ -16,8 +16,8 @@ directly from your Hermes conversations. No running to another tool.
 - **2 GPT Presets** — `gpt-photo` for text rendering and complex multi-subject
   scenes (GPT Image 1.5), and `gpt-art` for creative and stylized interpretation
   (GPT Image 2).
-- **6 Models** — FLUX Pro, FLUX Klein, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
-  and Clarity Upscaler. Choose the right tool for the job.
+- **7 Models** — FLUX Pro, FLUX 2 Klein 9B, FLUX 2 Pro, GPT Image 1.5, GPT Image 2,
+  Clarity Upscaler, and the legacy FLUX Klein v1 for compatibility. Choose the right tool for the job.
 - **Auto-Upscaling** — Every image can be 2x upscaled with a single command.
 - **Image-to-Image Editing** — Transform any generated image with a new prompt using GPT Image 1.5. "Turn this photo into a watercolor painting" or "Add a dirt path leading to the door."
 - **Batch Generation** — Generate 2-8 variants simultaneously with random seeds

@@ -28,9 +28,17 @@ MODELS: Dict[str, Dict[str, Any]] = {
         "size_format": "object",
     },
     "flux-klein": {
+        "endpoint": "https://fal.run/fal-ai/flux-2/klein/9b",
+        "display": "FLUX 2 Klein 9B",
+        "description": "Fast (<1s) generation with strong quality from FLUX 2. Great for iteration and quick drafts.",
+        "default_steps": 28,
+        "max_steps": 40,
+        "size_format": "object",
+    },
+    "flux-klein-v1": {
         "endpoint": "https://fal.run/fal-ai/flux/klein/9b",
-        "display": "FLUX Klein 9B",
-        "description": "Fast (<1s) generation with strong quality. Great for iteration and quick drafts.",
+        "display": "FLUX Klein 9B (v1)",
+        "description": "Original FLUX Klein 9B endpoint. Kept for compatibility with older workflows.",
         "default_steps": 28,
         "max_steps": 40,
         "size_format": "object",
@@ -307,14 +315,15 @@ def edit(
     """Edit an existing image via FAL (img2img).
 
     Accepts a source image URL and a prompt describing the edit.
-    Works with GPT Image 1.5 (best for precise edits) and FLUX 2 Pro.
+    Works with GPT Image 1.5 (best for precise edits), FLUX 2 Pro,
+    and FLUX 2 Klein 9B.
 
     Returns:
         dict with keys: image_url, model, aspect_ratio, width, height, steps
     """
     model_info = MODELS.get(model)
     if model_info is None:
-        raise ValueError(f"Unknown model '{model}'. Available: gpt-image-1.5, flux-2-pro")
+        raise ValueError(f"Unknown model '{model}'. Available: gpt-image-1.5, flux-2-pro, flux-klein")
 
     ar_key = resolve_aspect_ratio(aspect_ratio)
     size_format = model_info.get("size_format", "object")
